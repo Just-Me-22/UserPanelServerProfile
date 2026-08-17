@@ -40,6 +40,28 @@ Two animation bugs that only show up once the panel starts changing:
   asset. Note that AlwaysAnimate cannot fix this: it rewrites `canAnimate` keys
   that already exist at a call site, and this one omits the key entirely.
 
+## Nameplate ink
+
+The plugin also publishes the nameplate's own colour as a CSS variable,
+`--np-plate` on `<body>`, so a theme can tint the panel to match whatever
+nameplate is active.
+
+Discord does not expose that colour. `--custom-nameplate` is a black scrim
+(`#00000033`) rather than the plate's hue, and the only real colour it publishes,
+`--custom-display-name-styles-main-color`, lives on a container nested inside the
+title, so the status line and buttons sit above it and cannot inherit it.
+
+So the colour is sampled instead: the nameplate's static asset is drawn into a
+32x32 canvas and averaged, weighting each pixel by the square of its saturation
+so the plate's accent wins over its dark background. Near-black and near-grey
+pixels are skipped outright, and the result is lifted so a dark plate still gives
+a usable ink. Results are cached per asset, and the variable is removed when no
+nameplate is active so `var(--np-plate, ...)` falls back cleanly.
+
+Sampling failures are caught and logged rather than thrown - a throw in `start()`
+would make Vencord drop the plugin's patches and take the whole server profile
+with it, and the ink is the least important part of this plugin.
+
 ## Requirements
 
 Equicord installed **from source**. Userplugins are compiled into the bundle, so

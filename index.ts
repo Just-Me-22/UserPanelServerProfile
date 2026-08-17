@@ -4,8 +4,11 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { Logger } from "@utils/Logger";
 import definePlugin from "@utils/types";
 import { GuildMemberStore, SelectedGuildStore, UserStore } from "@webpack/common";
+
+import { startNameplateInk, stopNameplateInk } from "./nameplateInk";
 
 function getMember() {
     const guildId = SelectedGuildStore.getGuildId();
@@ -65,6 +68,18 @@ export default definePlugin({
         }
     ],
 
+    start() {
+        // a throw here would make Vencord drop this plugin's patches, taking the
+        // whole server profile with it. the ink is the least important part.
+        try {
+            startNameplateInk();
+        } catch (err) {
+            new Logger("UserPanelServerProfile").error("nameplate ink did not start", err);
+        }
+    },
+
+    stop: stopNameplateInk,
+
     getGuildId() {
         return SelectedGuildStore.getGuildId() ?? undefined;
     },
@@ -81,3 +96,4 @@ export default definePlugin({
         return getMember()?.nick ?? name;
     }
 });
+
