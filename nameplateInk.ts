@@ -35,17 +35,22 @@ function toHex(r: number, g: number, b: number) {
 
 function dominant(data: Uint8ClampedArray) {
     let r = 0, g = 0, b = 0, total = 0;
-    let flatR = 0, flatG = 0, flatB = 0, flat = 0;
+    let softR = 0, softG = 0, softB = 0, soft = 0;
 
     for (let i = 0; i < data.length; i += 4) {
         const alpha = data[i + 3] / 255;
         if (alpha < 0.5) continue;
 
         const [red, green, blue] = [data[i], data[i + 1], data[i + 2]];
-        flatR += red; flatG += green; flatB += blue; flat++;
-
         const max = Math.max(red, green, blue);
         const saturation = max === 0 ? 0 : (max - Math.min(red, green, blue)) / max;
+
+        const softWeight = saturation * alpha;
+        softR += red * softWeight;
+        softG += green * softWeight;
+        softB += blue * softWeight;
+        soft += softWeight;
+
         if (max < 40 || saturation < 0.15) continue;
 
         const weight = saturation * saturation * alpha;
@@ -56,10 +61,10 @@ function dominant(data: Uint8ClampedArray) {
     }
 
     if (total > 0) return toHex(r / total, g / total, b / total);
-    // a dark or near-grey plate has no pixel saturated enough for the pass above.
-    // averaging the opaque ones still finds its hue, and toHex lifts it to a
-    // brightness the panel can actually use.
-    return flat > 0 ? toHex(flatR / flat, flatG / flat, flatB / flat) : null;
+    // a dark or near-grey plate has no pixel saturated enough for the pass above. weighting
+    // the rest by saturation keeps what little colour it has, where a flat mean of every
+    // opaque pixel just averages the plate into grey.
+    return soft > 0 ? toHex(softR / soft, softG / soft, softB / soft) : null;
 }
 
 function read(url: string) {
