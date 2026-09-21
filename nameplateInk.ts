@@ -35,12 +35,15 @@ function toHex(r: number, g: number, b: number) {
 
 function dominant(data: Uint8ClampedArray) {
     let r = 0, g = 0, b = 0, total = 0;
+    let flatR = 0, flatG = 0, flatB = 0, flat = 0;
 
     for (let i = 0; i < data.length; i += 4) {
         const alpha = data[i + 3] / 255;
         if (alpha < 0.5) continue;
 
         const [red, green, blue] = [data[i], data[i + 1], data[i + 2]];
+        flatR += red; flatG += green; flatB += blue; flat++;
+
         const max = Math.max(red, green, blue);
         const saturation = max === 0 ? 0 : (max - Math.min(red, green, blue)) / max;
         if (max < 40 || saturation < 0.15) continue;
@@ -52,7 +55,11 @@ function dominant(data: Uint8ClampedArray) {
         total += weight;
     }
 
-    return total === 0 ? null : toHex(r / total, g / total, b / total);
+    if (total > 0) return toHex(r / total, g / total, b / total);
+    // a dark or near-grey plate has no pixel saturated enough for the pass above.
+    // averaging the opaque ones still finds its hue, and toHex lifts it to a
+    // brightness the panel can actually use.
+    return flat > 0 ? toHex(flatR / flat, flatG / flat, flatB / flat) : null;
 }
 
 function read(url: string) {
@@ -83,6 +90,11 @@ async function apply() {
 
     const known = inks.get(asset);
     if (known) return document.body.style.setProperty(VAR, known);
+
+    // drop the previous plate's ink before reading the new one. animated plates have
+    // no static.png, and leaving the old value up paints the panel a colour from a
+    // nameplate that is no longer worn - worse than the stylesheet's fallback.
+    document.body.style.removeProperty(VAR);
 
     try {
         const ink = await read(`${ASSETS}${asset}static.png`);

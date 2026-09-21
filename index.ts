@@ -96,4 +96,3 @@ export default definePlugin({
         return getMember()?.nick ?? name;
     }
 });
-
