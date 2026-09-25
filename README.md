@@ -43,8 +43,10 @@ Two animation bugs that only show up once the panel starts changing:
 ## Nameplate ink
 
 The plugin also publishes the nameplate's own colour as a CSS variable,
-`--np-plate` on `<body>`, so a theme can tint the panel to match whatever
-nameplate is active.
+`--np-plate` on the user panel (`section[class*="panels_"]`), so a theme can tint
+the panel to match whatever nameplate is active. It used to sit on `<body>`, but
+every element inherits from there, so each change restyled the whole app: 284ms,
+against 17ms on the panel.
 
 Discord does not expose that colour. `--custom-nameplate` is a black scrim
 (`#00000033`) rather than the plate's hue, and the only real colour it publishes,

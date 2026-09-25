@@ -5,6 +5,7 @@
  */
 
 import { Logger } from "@utils/Logger";
+import { findCssClassesLazy } from "@webpack";
 import { GuildMemberStore, SelectedGuildStore, UserStore } from "@webpack/common";
 
 const VAR = "--np-plate";
@@ -13,9 +14,15 @@ const SIZE = 32;
 
 const logger = new Logger("UserPanelServerProfile");
 const inks = new Map<string, string>();
+const PanelClasses = findCssClassesLazy("panels", "sidebarList", "activityPanel");
 
 let current: string | null = null;
 let stores: any[] = [];
+let sheet: HTMLStyleElement | undefined;
+
+function paint(ink: string | null) {
+    sheet!.textContent = ink ? `.${PanelClasses.panels}{${VAR}:${ink}}` : "";
+}
 
 function activeAsset() {
     const user = UserStore.getCurrentUser();
@@ -91,28 +98,32 @@ async function apply() {
     if (asset === current) return;
     current = asset;
 
-    if (!asset) return document.body.style.removeProperty(VAR);
+    if (!asset) return paint(null);
 
     const known = inks.get(asset);
-    if (known) return document.body.style.setProperty(VAR, known);
+    if (known) return paint(known);
 
     // drop the previous plate's ink before reading the new one. animated plates have
     // no static.png, and leaving the old value up paints the panel a colour from a
     // nameplate that is no longer worn - worse than the stylesheet's fallback.
-    document.body.style.removeProperty(VAR);
+    paint(null);
 
     try {
         const ink = await read(`${ASSETS}${asset}static.png`);
         if (!ink) return;
 
         inks.set(asset, ink);
-        if (current === asset) document.body.style.setProperty(VAR, ink);
+        if (current === asset) paint(ink);
     } catch (err) {
         logger.error("could not read the nameplate colour", err);
     }
 }
 
 export function startNameplateInk() {
+    sheet = document.createElement("style");
+    sheet.id = "vc-nameplate-ink";
+    document.head.append(sheet);
+
     stores = [SelectedGuildStore, UserStore, GuildMemberStore];
     for (const store of stores) store.addChangeListener(apply);
     apply();
@@ -123,5 +134,6 @@ export function stopNameplateInk() {
 
     stores = [];
     current = null;
-    document.body.style.removeProperty(VAR);
+    sheet?.remove();
+    sheet = undefined;
 }
