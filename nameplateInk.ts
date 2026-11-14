@@ -40,8 +40,17 @@ function toHex(r: number, g: number, b: number) {
     return `#${channel(r)}${channel(g)}${channel(b)}`;
 }
 
+const HUE_BINS = 24;
+
+function hueOf(red: number, green: number, blue: number, max: number, min: number) {
+    const span = max - min;
+    if (span === 0) return 0;
+    const hue = max === red ? (green - blue) / span : max === green ? 2 + (blue - red) / span : 4 + (red - green) / span;
+    return (hue * 60 + 360) % 360;
+}
+
 function dominant(data: Uint8ClampedArray) {
-    let r = 0, g = 0, b = 0, total = 0;
+    const bins = Array.from({ length: HUE_BINS }, () => ({ r: 0, g: 0, b: 0, weight: 0 }));
     let softR = 0, softG = 0, softB = 0, soft = 0;
 
     for (let i = 0; i < data.length; i += 4) {
@@ -50,7 +59,8 @@ function dominant(data: Uint8ClampedArray) {
 
         const [red, green, blue] = [data[i], data[i + 1], data[i + 2]];
         const max = Math.max(red, green, blue);
-        const saturation = max === 0 ? 0 : (max - Math.min(red, green, blue)) / max;
+        const min = Math.min(red, green, blue);
+        const saturation = max === 0 ? 0 : (max - min) / max;
 
         const softWeight = saturation * alpha;
         softR += red * softWeight;
@@ -60,14 +70,28 @@ function dominant(data: Uint8ClampedArray) {
 
         if (max < 40 || saturation < 0.15) continue;
 
-        const weight = saturation * saturation * alpha;
-        r += red * weight;
-        g += green * weight;
-        b += blue * weight;
-        total += weight;
+        const weight = alpha * (0.5 + 0.5 * saturation);
+        const bin = bins[Math.floor(hueOf(red, green, blue, max, min) / (360 / HUE_BINS)) % HUE_BINS];
+        bin.r += red * weight;
+        bin.g += green * weight;
+        bin.b += blue * weight;
+        bin.weight += weight;
     }
 
-    if (total > 0) return toHex(r / total, g / total, b / total);
+    let best = -1, bestWeight = 0;
+    for (let i = 0; i < HUE_BINS; i++) {
+        const around = bins[(i + HUE_BINS - 1) % HUE_BINS].weight + bins[i].weight + bins[(i + 1) % HUE_BINS].weight;
+        if (around > bestWeight) {
+            bestWeight = around;
+            best = i;
+        }
+    }
+
+    if (best >= 0) {
+        const picked = [bins[(best + HUE_BINS - 1) % HUE_BINS], bins[best], bins[(best + 1) % HUE_BINS]];
+        const mean = (key: "r" | "g" | "b") => picked.reduce((acc, bin) => acc + bin[key], 0) / bestWeight;
+        return toHex(mean("r"), mean("g"), mean("b"));
+    }
     // a dark or near-grey plate has no pixel saturated enough for the pass above. weighting
     // the rest by saturation keeps what little colour it has, where a flat mean of every
     // opaque pixel just averages the plate into grey.
